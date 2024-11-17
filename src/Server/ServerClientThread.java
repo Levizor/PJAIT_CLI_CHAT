@@ -1,7 +1,9 @@
 package Server;
 
+import java.awt.*;
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 
 public class ServerClientThread extends Thread{
     Socket socket;
@@ -59,11 +61,29 @@ public class ServerClientThread extends Thread{
             String line;
             while(connected && (line=in.readLine())!=null){
                 System.out.println(line);
-                if(line.equals("cmd:disconnect")){
-                    disconnect();
+                if(line.startsWith("cmd")){
+                    if(line.equals("cmd:disconnect")){
+                        disconnect();
+                    }
+                }else if(line.startsWith("info")){
+
+                }else if(line.startsWith("msg")){
+                    String[] arr = line.split(":");
+                    if (arr.length < 3){
+                        print("info:bad");
+                        return;
+                    }
+                    if(arr[1].equals("all")){
+                        sendAll("msg:%s:".formatted(username) + line.substring("msg:all:".length()));
+                    }
+
                 }
+
             }
-        }catch (IOException e) {
+        }catch(SocketException e){
+
+        }
+        catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -73,7 +93,8 @@ public class ServerClientThread extends Thread{
     }
 
     public void sendAll(String s){
-        Server.clientThreads.stream().forEach(sct -> print(s));
+        System.out.println("sending string "+s);
+        Server.clientThreads.stream().forEach(sct -> sct.print(s));
     }
 
     public static boolean userNameExist(String s){

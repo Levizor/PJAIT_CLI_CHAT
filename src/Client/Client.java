@@ -1,10 +1,12 @@
 package Client;
 
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Scanner;
 
 public class Client {
@@ -67,17 +69,24 @@ public class Client {
         }
     }
 
+    public void printPrompt(){
+        System.out.printf("%s > ", username);
+    }
+
     class ReadThread extends Thread{
+
+
         public void run(){
             try{
                 String line;
-                while(in.ready() && (line = in.readLine()) != null){
-                    System.out.println("SERVER_RESPONSE\n=======================");
-                    System.out.println(line);
-                    System.out.println("=======================");
+                while((line = in.readLine()) != null){
+                    System.out.println("\r\033[2K"+line);
+                    printPrompt();
                 }
+            }catch (SocketException e){
+                System.out.println("Disconnected from the server");
             }catch (IOException e){
-                System.out.println("Error while reading server ");
+                System.out.println("Error while reading server");
             }
         }
     }
@@ -89,6 +98,7 @@ public class Client {
             running = false;
         }
 
+
         public void run(){
 
             running = true;
@@ -96,7 +106,7 @@ public class Client {
                 Scanner scanner = new Scanner(System.in);
                 String line;
                 while (running){
-                    System.out.printf("%s > ", username);
+                    printPrompt();
                     line = scanner.nextLine();
                     interpret(line);
                 }
@@ -113,7 +123,7 @@ public class Client {
             line = line.trim();
 
             if(!line.startsWith("/")){
-                out.println("msg:all:"+line);
+                out.println("msg:all:" + line);
             }
 
             String command = line.substring(1, Helper.getFirstWordEndIndex(line));
