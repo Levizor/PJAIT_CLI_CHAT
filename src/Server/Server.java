@@ -1,12 +1,14 @@
 package Server;
 
+import lib.ConfigParser;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -27,14 +29,16 @@ public class Server {
         try{
             parser.parse();
         }
-        catch(FileNotFoundException e){
-            System.out.println("Config file does not exist");
+        catch(NoSuchFileException e){
+            System.err.println("Config file does not exist");
             System.out.println("Default configuration will be loaded:");
             System.out.printf("Port: %d\nName: %s\n", port, name);
         }
         catch (ParseException e){
             e.printStackTrace();
             System.exit(-1);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
         System.out.println(parser);
@@ -66,4 +70,9 @@ public class Server {
 
         }
     }
+
+    public static Set<String> getBannedPhrases(){
+        return bannedPhrases;
+    }
+
 }

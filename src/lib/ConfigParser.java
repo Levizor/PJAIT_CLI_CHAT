@@ -1,7 +1,8 @@
-package Server;
+package lib;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.text.ParseException;
 import java.util.*;
@@ -21,10 +22,10 @@ public class ConfigParser {
         this.configFile = configFile;
     }
 
-    public void parse() throws ParseException, FileNotFoundException {
+    public void parse() throws ParseException, NoSuchFileException, IOException {
         map = new HashMap<>();
         StringBuilder bannedPhrasesStr = new StringBuilder();
-        try (Stream<String> lines = Files.lines(configFile)) {
+        Stream<String> lines = Files.lines(configFile);
             lines
                     .map(String::trim)
                     .map(String::toLowerCase)
@@ -61,9 +62,6 @@ public class ConfigParser {
             parseBannedPhrases(bannedPhrasesStr.toString());
 
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
     }
 
@@ -77,6 +75,10 @@ public class ConfigParser {
         if(map.containsKey("name")){
             name = map.get("name");
         }
+    }
+
+    public String getValue(String key){
+        return map.getOrDefault(key, null);
     }
 
     public void parseBannedPhrases(String s){

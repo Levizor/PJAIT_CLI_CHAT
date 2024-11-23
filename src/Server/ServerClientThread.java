@@ -1,103 +1,165 @@
 package Server;
 
-import java.awt.*;
+import lib.Command;
+import lib.Info;
+import lib.Message;
+
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Arrays;
 
-public class ServerClientThread extends Thread{
+public class ServerClientThread extends Thread {
     Socket socket;
     boolean connected = false;
     BufferedReader in;
     PrintWriter out;
 
     String username;
+    static final Info OK = new Info("ok");
 
     public ServerClientThread(Socket socket) {
-        super(""+socket.getPort());
+        super("" + socket.getPort());
         this.socket = socket;
     }
 
-    public void loop() throws IOException{
-    }
+    public void assignName() {
 
-    public void assignName(){
-
-        System.out.println("Running client on port "+socket.getPort());
-        try{
+        System.out.println("Running client on port " + socket.getPort());
+        try {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
             String name = in.readLine();
-            while (userNameExist(name)){
-                print("info:username_exists");
+            while (userNameExist(name)) {
+                print(new Info("username_exists"));
                 name = in.readLine();
             }
-
+            agree();
             username = name;
             connected = true;
-            print("info:ok");
-            System.out.println(username + " connected");
-
-        }catch (Exception e) {
+            notifyConnected();
+        } catch (Exception e) {
         }
     }
 
-    public void disconnect(){
+    public void agree() {
+        print(OK);
+    }
+
+    public void printInfo(String s) {
+        Info info = new Info(s);
+        print(info);
+    }
+
+    public void notifyConnected() {
+        String info = (new Info(username + " connected.")).toString();
+        Server.clientThreads.stream().forEach(ct -> ct.print(info));
+    }
+
+    public void disconnect() {
         connected = false;
-        try{
+        try {
             socket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println(username + " disconnected");
         Server.clientThreads.remove(this);
-        sendAll("info:disconnected:%s".formatted(username));
+        sendAll(new Info("%s disconnected".formatted(username)));
+
     }
 
-    public void run(){
+    public void run() {
         assignName();
-        try{
+        try {
             String line;
-            while(connected && (line=in.readLine())!=null){
+            while (connected && (line = in.readLine()) != null) {
                 System.out.println(line);
-                if(line.startsWith("cmd")){
-                    if(line.equals("cmd:disconnect")){
-                        disconnect();
+                if (line.startsWith("cmd")) {
+                    Command command = Command.fromRaw(line);
+                    switch (command.getText()) {
+                        case "disconnect" -> {
+                            disconnect();
+                        }
+                        case "banwords" -> {
+                            printInfo(String.join(", ", Server.getBannedPhrases()));
+                        }
                     }
-                }else if(line.startsWith("info")){
-
-                }else if(line.startsWith("msg")){
-                    String[] arr = line.split(":");
-                    if (arr.length < 3){
-                        print("info:bad");
-                        return;
+                } else if (line.startsWith("msg")) {
+                    Message message = Message.fromRaw(line);
+                    if (message.containsBannedPhrases()) {
+                        printInfo("Message contains banned phrases. To look at the list of banned phrases use /banwords");
+                        continue;
                     }
-                    if(arr[1].equals("all")){
-                        sendAll("msg:%s:".formatted(username) + line.substring("msg:all:".length()));
+                    if (message.toAll()) {
+                        agree();
+                        sendAll(line);
+                    } else {
+                        sendTo(message);
                     }
 
                 }
-
             }
-        }catch(SocketException e){
-
-        }
-        catch (IOException e) {
+        } catch (SocketException e) {
+            disconnect();
+        } catch (IOException e) {
             e.printStackTrace();
+            disconnect();
+        }finally {
+            try{
+                socket.close();
+                disconnect();
+            } catch (IOException e) {
+                System.err.println("Error closing a socket");
+            }
         }
     }
 
-    public void print(String s){
+    public void print(Object s) {
+        System.out.println(s);
         out.println(s);
     }
 
-    public void sendAll(String s){
-        System.out.println("sending string "+s);
-        Server.clientThreads.stream().forEach(sct -> sct.print(s));
+    public void sendAll(Object s) {
+        Server.clientThreads.forEach(sct -> sct.print(s));
     }
 
-    public static boolean userNameExist(String s){
+    public void sendTo(Message message) {
+
+        boolean except = message.isExcept_receivers();
+        String[] receivers = message.getReceivers();
+        String[] notInList = (String[]) Arrays.stream(receivers)
+                .filter(
+                        r -> Server.clientThreads.stream().noneMatch(ct -> r.equals(ct.username))
+                )
+                .toArray(String[]::new);
+        if (notInList.length > 0) {
+            printInfo("%s do not exist: %s".formatted(except ? "Excepted receivers" : "Receivers", String.join(", ", notInList)));
+            return;
+        }
+        agree();
+
+        if(except) {
+            Server.clientThreads.stream()
+                    .filter(ct -> Arrays.stream(receivers).noneMatch(r -> r.equals(ct.username)))
+                    .forEach(ct -> ct.print(message));
+        }else {
+
+            Server.clientThreads.stream().
+                    filter(
+                            ct ->
+                                    Arrays.stream(receivers)
+                                            .peek(System.out::println)
+                                            .anyMatch(
+                                                    r -> r.equals(ct.username)
+                                            )
+                    )
+                    .forEach(ct -> ct.print(message));
+        }
+
+    }
+
+    public static boolean userNameExist(String s) {
         return Server.clientThreads.stream().anyMatch(sct -> s.equals(sct.username));
     }
 
